@@ -1,0 +1,47 @@
+{
+  "name": "monoup",
+  "version": "0.0.2",
+  "type": "module",
+  "description": "A library packing tool for monorepos",
+  "main": "src/index.mjs",
+  "module": "src/index.mjs",
+  "bin": "./bin/monoup.mjs",
+  "files": [
+    "bin",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "packer",
+    "cli",
+    "build"
+  ],
+  "dependencies": {
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.1",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "esbuild": "^0.24.0",
+    "glob": "^11.0.0",
+    "rollup": "^4.27.4",
+    "rollup-plugin-esbuild": "^6.1.1",
+    "tslib": "^2.8.1"
+  },
+  "author": "illuxiza",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/illuxiza/monoup"
+  },
+  "bugs": {
+    "url": "https://github.com/illuxiza/monoup/issues"
+  },
+  "homepage": "https://github.com/illuxiza/monoup#readme"
+}
