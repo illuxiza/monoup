@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs";
 import { getConfig } from "./config.mjs";
 import { log } from "./display.mjs";
+import { getPackageInfo } from "./package.mjs";
 
 function parseVersion(version) {
   // Matches: major.minor.patch[-prerelease][+build]
@@ -45,6 +46,48 @@ function incrementPrerelease(prerelease, tag = "alpha") {
   return parts.join(".");
 }
 
+function compareVersions(version1, version2) {
+  const v1 = parseVersion(version1);
+  const v2 = parseVersion(version2);
+
+  if (!v1 || !v2) return null;
+
+  // Compare major.minor.patch
+  if (v1.major !== v2.major) return v1.major - v2.major;
+  if (v1.minor !== v2.minor) return v1.minor - v2.minor;
+  if (v1.patch !== v2.patch) return v1.patch - v2.patch;
+
+  // If no prerelease, version is higher than one with prerelease
+  if (!v1.prerelease && v2.prerelease) return 1;
+  if (v1.prerelease && !v2.prerelease) return -1;
+  if (!v1.prerelease && !v2.prerelease) return 0;
+
+  // Compare prerelease versions
+  const pre1 = v1.prerelease.split('.');
+  const pre2 = v2.prerelease.split('.');
+  const minLength = Math.min(pre1.length, pre2.length);
+
+  for (let i = 0; i < minLength; i++) {
+    const a = pre1[i];
+    const b = pre2[i];
+    const aNum = parseInt(a, 10);
+    const bNum = parseInt(b, 10);
+
+    if (isNaN(aNum) && isNaN(bNum)) {
+      if (a < b) return -1;
+      if (a > b) return 1;
+    } else if (isNaN(aNum)) {
+      return -1;
+    } else if (isNaN(bNum)) {
+      return 1;
+    } else if (aNum !== bNum) {
+      return aNum - bNum;
+    }
+  }
+
+  return pre1.length - pre2.length;
+}
+
 function updateVersion(packagePath, versionArg = "patch", options = {}) {
   const pkgJsonPath = path.resolve(packagePath, "package.json");
   if (!fs.existsSync(pkgJsonPath)) return;
@@ -56,7 +99,7 @@ function updateVersion(packagePath, versionArg = "patch", options = {}) {
     // Standard version increment
     const currentVersion = parseVersion(pkg.version);
     if (!currentVersion) {
-      log(`Current version ${pkg.version} is not a valid semver`, "error");
+      log(`[${pkg.name}] Current version ${pkg.version} is not a valid semver`, "error");
       process.exit(1);
     }
 
@@ -88,9 +131,19 @@ function updateVersion(packagePath, versionArg = "patch", options = {}) {
   } else if (isValidSemVer(versionArg)) {
     // Direct version set
     newVersion = versionArg;
+    
+    // Compare versions
+    const comparison = compareVersions(newVersion, pkg.version);
+    if (comparison === 0) {
+      log(`[${pkg.name}] Version ${newVersion} is already set, no changes needed`, "info");
+      return;
+    }
+    if (comparison < 0) {
+      log(`[${pkg.name}] Warning: New version ${newVersion} is lower than current version ${pkg.version}`, "warn");
+    }
   } else {
     log(
-      `Invalid version format: ${versionArg}. Must be 'major', 'minor', 'patch', 'pre' or a valid semver (e.g., '1.2.3', '1.2.3-alpha.1', '1.2.3-beta.1+exp.sha.123')`,
+      `[${pkg.name}] Invalid version format: ${versionArg}. Must be 'major', 'minor', 'patch', 'pre' or a valid semver (e.g., '1.2.3', '1.2.3-alpha.1', '1.2.3-beta.1+exp.sha.123')`,
       "error"
     );
     process.exit(1);
@@ -98,32 +151,41 @@ function updateVersion(packagePath, versionArg = "patch", options = {}) {
 
   pkg.version = newVersion;
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + "\n");
-  log(`Updated ${pkg.name} to ${newVersion}`, "success");
+  log(`[${pkg.name}] Updated to version ${newVersion}`, "success");
 }
 
 export async function version(versionArg = "patch", options = {}) {
-  log("Starting version update...", "info");
-
-  // Get configuration
-  const config = await getConfig(process.argv);
+  const config = await getConfig(options);
   const rootDir = config.rootDir;
 
-  // Update root package version
-  updateVersion(rootDir, versionArg, options);
+  const namePattern = new RegExp(`^@${config.name}\\/`);
+  // Get all package directories
+  const packages = [
+    rootDir,
+    ...(config.monorepo
+      ? fs
+          .readdirSync(path.resolve(rootDir, config.packagesDir))
+          .map((dir) => path.resolve(rootDir, config.packagesDir, dir))
+          .filter((dir) => fs.statSync(dir).isDirectory())
+      : []),
+  ];
 
-  // Update monorepo package versions if applicable
-  if (config.monorepo) {
-    const packagesDir = path.resolve(rootDir, config.packagesDir);
-    if (fs.existsSync(packagesDir)) {
-      fs.readdirSync(packagesDir)
-        .map((dir) => path.resolve(packagesDir, dir))
-        .filter((dir) => fs.statSync(dir).isDirectory())
-        .forEach((packageDir) =>
-          updateVersion(packageDir, versionArg, options)
-        );
-    }
+  // Filter packages if specific package is specified
+  const targetPackages = config.package
+    ? packages.filter((pkg) => {
+        const pkgInfo = getPackageInfo(pkg);
+        const pkgName = pkgInfo.name.replace(namePattern, "");
+        return pkgName === config.package;
+      })
+    : packages;
+
+  if (config.package && targetPackages.length === 0) {
+    log(`Package '${config.package}' not found`, "error");
+    process.exit(1);
   }
 
-  log("Version update completed successfully", "success");
-  return true;
+  // Update version for each package
+  for (const packageDir of targetPackages) {
+    updateVersion(packageDir, versionArg, options);
+  }
 }

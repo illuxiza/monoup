@@ -3,7 +3,12 @@ import fs from 'fs';
 
 const packageInfoCache = new Map();
 
-// Get package info from package.json
+/**
+ * Retrieves package information from the package.json file.
+ * 
+ * @param {string} pkgPath - The path to the package directory.
+ * @returns {object} The package information.
+ */
 export function getPackageInfo(pkgPath) {
   if (packageInfoCache.has(pkgPath)) {
     return packageInfoCache.get(pkgPath);
@@ -17,7 +22,12 @@ export function getPackageInfo(pkgPath) {
   return pkg;
 }
 
-// Get package dependencies
+/**
+ * Retrieves package dependencies.
+ * 
+ * @param {string} pkgPath - The path to the package directory.
+ * @returns {object} An object containing the package name and dependencies.
+ */
 export function getPackageDependencies(pkgPath) {
   const pkg = getPackageInfo(pkgPath);
   return {
@@ -30,12 +40,17 @@ export function getPackageDependencies(pkgPath) {
   };
 }
 
-// Sort packages by dependencies
+/**
+ * Sorts packages by their dependencies.
+ * 
+ * @param {string[]} packagePaths - An array of package directory paths.
+ * @returns {string[]} An array of sorted package directory paths.
+ */
 export function sortPackagesByDependencies(packagePaths) {
   const packagesMap = new Map();
   const dependencyGraph = new Map();
 
-  // Build dependency graph
+  // Build the dependency graph
   for (const pkgPath of packagePaths) {
     if (!pkgPath) continue;
     const pkgInfo = getPackageDependencies(pkgPath);
@@ -43,11 +58,17 @@ export function sortPackagesByDependencies(packagePaths) {
     dependencyGraph.set(pkgInfo.name.replace('@rustable/', ''), pkgInfo.dependencies);
   }
 
-  // Calculate dependency depth for each package
+  // Calculate the dependency depth for each package
   const depthMap = new Map();
   const visited = new Set();
   const temp = new Set();
 
+  /**
+   * Calculates the dependency depth for a package.
+   * 
+   * @param {string} pkgName - The package name.
+   * @returns {number} The dependency depth.
+   */
   function calculateDepth(pkgName) {
     if (!pkgName || !packagesMap.has(pkgName)) return 0;
     if (temp.has(pkgName)) {
@@ -61,7 +82,7 @@ export function sortPackagesByDependencies(packagePaths) {
     const deps = dependencyGraph.get(pkgName) || [];
     let maxDepth = 0;
 
-    // Calculate max depth of dependencies
+    // Calculate the maximum depth of dependencies
     for (const dep of deps) {
       if (packagesMap.has(dep)) {
         const depDepth = calculateDepth(dep);
@@ -76,7 +97,7 @@ export function sortPackagesByDependencies(packagePaths) {
     return depth;
   }
 
-  // Calculate depth for all packages
+  // Calculate the depth for all packages
   for (const pkgName of packagesMap.keys()) {
     if (!visited.has(pkgName)) {
       calculateDepth(pkgName);

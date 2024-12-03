@@ -1,15 +1,18 @@
-import path from "path";
 import fs from "fs";
+import path from "path";
 import { getConfig } from "./config.mjs";
 import { log } from "./display.mjs";
+import { getPackageInfo } from "./package.mjs";
 
-export async function clean() {
+export async function clean(options = {}) {
   log("Starting clean...", "info");
 
-  // Get configuration
-  const config = await getConfig(process.argv);
+  // Retrieve configuration
+  const config = await getConfig(options);
   const rootDir = config.rootDir;
+  const baseOutDir = config.outDir;
 
+  const namePattern = new RegExp(`^@${config.name}\\/`);
   // Get all package directories
   const packages = [
     rootDir,
@@ -21,18 +24,64 @@ export async function clean() {
       : []),
   ];
 
+  // Filter packages if specific package is specified
+  const targetPackages = config.package
+    ? packages.filter((pkg) => {
+        const pkgInfo = getPackageInfo(pkg);
+        const pkgName = pkgInfo.name.replace(namePattern, "");
+        return pkgName === config.package;
+      })
+    : packages;
+
+  if (config.package && targetPackages.length === 0) {
+    log(`Package '${config.package}' not found`, "error");
+    process.exit(1);
+  }
+
+  // Track cleaned directories
+  let cleanedCount = 0;
+  let skippedCount = 0;
+
   // Clean output directories for each package
-  for (const packageDir of packages) {
-    const pkgConfig = await getConfig(process.argv, packageDir);
-    if (pkgConfig.outDir) {
-      const outDir = path.resolve(packageDir, pkgConfig.outDir);
-      if (fs.existsSync(outDir)) {
-        fs.rmSync(outDir, { recursive: true, force: true });
-        log(`Cleaned output directory: ${outDir}`, "success");
-      }
+  for (const packageDir of targetPackages) {
+    const pkgInfo = getPackageInfo(packageDir);
+    const outDir = path.resolve(packageDir, baseOutDir);
+    const relativeOutDir = path.relative(rootDir, outDir);
+
+    if (fs.existsSync(outDir)) {
+      fs.rmSync(outDir, { recursive: true, force: true });
+      cleanedCount++;
+      log(
+        `[${pkgInfo.name}] Cleaned output directory: ${relativeOutDir}`,
+        "success"
+      );
+    } else {
+      skippedCount++;
+      log(
+        `[${pkgInfo.name}] Skipped non-existent directory: ${relativeOutDir}`,
+        "info"
+      );
     }
   }
 
-  log("Clean completed successfully", "success");
-  return true;
+  // Log summary
+  if (cleanedCount > 0) {
+    log(
+      `Cleaned ${cleanedCount} director${cleanedCount === 1 ? "y" : "ies"}`,
+      "success"
+    );
+  }
+  if (skippedCount > 0 && config.verbose) {
+    log(
+      `Skipped ${skippedCount} non-existent director${
+        skippedCount === 1 ? "y" : "ies"
+      }`,
+      "info"
+    );
+  }
+  if (cleanedCount === 0 && skippedCount > 0) {
+    log("No directories needed cleaning", "info");
+  }
+
+  log("Clean completed", "success");
 }

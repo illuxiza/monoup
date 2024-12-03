@@ -1,6 +1,6 @@
-import { initDisplay, log, updatePackageDisplayStatus } from './display.mjs';
-import { getPackageInfo } from './package.mjs';
-import { buildPackage } from './rollup.mjs';
+import { initDisplay, log, updatePackageDisplayStatus } from "./display.mjs";
+import { getPackageInfo } from "./package.mjs";
+import { buildPackage } from "./rollup.mjs";
 
 const errorMessages = [];
 
@@ -13,28 +13,32 @@ export async function build(pkgPath, config) {
   const pkgName = pkg.name;
   const startTime = Date.now();
 
-  if (!config.options.process) {
+  if (!config.process) {
     log(`[${pkgName}] Building...`);
   } else {
-    updatePackageDisplayStatus(pkgName, 'building', 'Building...');
+    updatePackageDisplayStatus(pkgName, "building", "Building...");
   }
 
   try {
     const results = await buildPackage(pkgPath, config);
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    if (!config.options.process) {
-      log(`[${pkgName}] Build successful (${duration}s)`, 'success');
+    if (!config.process) {
+      log(`[${pkgName}] Build successful (${duration}s)`, "success");
     } else {
-      updatePackageDisplayStatus(pkgName, 'success', `Built ${results.join(', ')} (${duration}s)`);
+      updatePackageDisplayStatus(
+        pkgName,
+        "success",
+        `Built ${results.join(", ")} (${duration}s)`
+      );
     }
     return true;
   } catch (error) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    if (!config.options.process) {
-      log(`[${pkgName}] Build failed (${duration}s)`, 'error');
-      log(error.stack || error.message, 'error');
-      if (error.frame && config.options.verbose) {
-        log(error.frame, 'error');
+    if (!config.process) {
+      log(`[${pkgName}] Build failed (${duration}s)`, "error");
+      log(error.stack || error.message, "error");
+      if (error.frame && config.verbose) {
+        log(error.frame, "error");
       }
     } else {
       errorMessages.push(`${pkgName}: ${error.message} (${duration}s)`);
@@ -46,7 +50,7 @@ export async function build(pkgPath, config) {
 // Build all packages
 export async function buildAll(packages, config) {
   if (packages.length === 0) {
-    log('No packages to build', 'info');
+    log("No packages to build", "info");
     return;
   }
 
@@ -62,20 +66,14 @@ export async function buildAll(packages, config) {
   let failed = false;
 
   // 初始化显示 worker
-  if (config.options.process) {
+  if (config.process) {
     const initStartTime = Date.now();
-    const packageInfos = packages.map((pkgPath) => {
-      const pkg = getPackageInfo(pkgPath);
-      return {
-        name: pkg.name,
-      };
-    });
-    initDisplay(packageInfos);
+    initDisplay([]);
     timings.init = Date.now() - initStartTime;
   }
 
-  if (config.options.verbose) {
-    log('Build order:');
+  if (config.verbose) {
+    log("Build order:");
     packages.forEach((pkgPath, index) => {
       const pkg = getPackageInfo(pkgPath);
       log(`${index + 1}. ${pkg.name}`);
@@ -83,20 +81,19 @@ export async function buildAll(packages, config) {
   }
 
   // 如果不需要 TypeScript，直接并行构建所有包
-  if (!config.build.typescript.enabled || config.options.package) {
+  if (!config.build.typescript.enabled || config.package) {
     const buildStartTime = Date.now();
-    if (config.options.verbose) {
-      log('Building all packages in parallel...');
+    if (config.verbose) {
+      log("Building all packages in parallel...");
     }
 
     try {
       const ps = [];
       for (const pkgPath of packages) {
         const pkg = getPackageInfo(pkgPath);
-        const pkgName = pkg.name.replace(namePattern, '');
-        if (config.options.package && pkgName !== config.options.package) {
+        const pkgName = pkg.name.replace(namePattern, "");
+        if (config.package && pkgName !== config.package) {
           continue;
-          
         }
         ps.push(
           build(pkgPath, config).then((result) => {
@@ -105,13 +102,13 @@ export async function buildAll(packages, config) {
             } else {
               failed = true;
             }
-          }),
+          })
         );
       }
       await Promise.all(ps);
     } catch (error) {
       failed = true;
-      log(error.message, 'error');
+      log(error.message, "error");
     }
     timings.building = Date.now() - buildStartTime;
   } else {
@@ -123,19 +120,19 @@ export async function buildAll(packages, config) {
     // Build dependency graph and package name map
     for (const pkgPath of packages) {
       const pkg = getPackageInfo(pkgPath);
-      const pkgName = pkg.name.replace(namePattern, '');
+      const pkgName = pkg.name.replace(namePattern, "");
       packageNameMap.set(pkgName, pkgPath);
 
       const deps = pkg.dependencies
         ? Object.keys(pkg.dependencies)
             .filter((dep) => namePattern.test(dep))
-            .map((dep) => dep.replace(namePattern, ''))
+            .map((dep) => dep.replace(namePattern, ""))
             .filter((dep) => packages.includes(packageNameMap.get(dep)))
         : [];
       dependencyGraph.set(pkgName, deps);
 
       if (deps.length > 0) {
-        updatePackageDisplayStatus(pkg.name, 'waiting', `Waiting...`, deps);
+        updatePackageDisplayStatus(pkg.name, "waiting", `Waiting...`, deps);
       }
     }
 
@@ -152,9 +149,9 @@ export async function buildAll(packages, config) {
       }
 
       if (group.length === 0) {
-        log('Circular dependency detected in packages:', 'error');
+        log("Circular dependency detected in packages:", "error");
         const remainingPkgs = Array.from(remaining).map((name) => name);
-        log(remainingPkgs.join(', '), 'error');
+        log(remainingPkgs.join(", "), "error");
         process.exit(1);
       }
 
@@ -171,7 +168,11 @@ export async function buildAll(packages, config) {
       const pkgPath = packageNameMap.get(pkgName);
       try {
         const buildOne = async () => {
-          while (deps.filter((dep) => !builtPackages.has(packageNameMap.get(dep))).length > 0 && !failed) {
+          while (
+            deps.filter((dep) => !builtPackages.has(packageNameMap.get(dep)))
+              .length > 0 &&
+            !failed
+          ) {
             await new Promise((resolve) => setTimeout(resolve, 200));
           }
           return build(pkgPath, config).then((res) => {
@@ -187,7 +188,7 @@ export async function buildAll(packages, config) {
         ps.push(buildOne());
       } catch (error) {
         failed = true;
-        log(error.message, 'error');
+        log(error.message, "error");
         break;
       }
     }
@@ -202,11 +203,11 @@ export async function buildAll(packages, config) {
 
   const totalDuration = ((Date.now() - startTime) / 1000).toFixed(2);
   if (failed) {
-    log(`Build failed after ${totalDuration}s`, 'error');
-    errorMessages.forEach((message) => log(message, 'error'));
+    log(`Build failed after ${totalDuration}s`, "error");
+    errorMessages.forEach((message) => log(message, "error"));
     process.exit(1);
   } else if (builtCount > 0) {
-    if (config.options.verbose) {
+    if (config.verbose) {
       console.log();
       log(`Build Summary:`);
       log(`Initialization: ${(timings.init / 1000).toFixed(2)}s`);
@@ -216,9 +217,9 @@ export async function buildAll(packages, config) {
       log(`Building: ${(timings.building / 1000).toFixed(2)}s`);
       log(`Total Time: ${totalDuration}s`);
     }
-    log(`Built ${builtCount} packages in ${totalDuration}s`, 'success');
+    log(`Built ${builtCount} packages in ${totalDuration}s`, "success");
   } else {
-    log(`No packages built (${totalDuration}s)`, 'info');
+    log(`No packages built (${totalDuration}s)`, "info");
   }
   return true;
 }

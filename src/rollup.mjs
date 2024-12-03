@@ -8,23 +8,23 @@ import esbuild from 'rollup-plugin-esbuild';
 import terser from '@rollup/plugin-terser';
 import { getPackageInfo } from './package.mjs';
 
-// Create rollup config for a package
+// Create rollup configuration for a package
 export function createRollupConfig(pkgPath, config) {
   const pkg = getPackageInfo(pkgPath);
   const srcDir = path.resolve(pkgPath, config.srcDir);
   const outDir = path.resolve(pkgPath, config.outDir);
   const entry = path.resolve(srcDir, config.build.packageEntry);
 
-  // Get external dependencies
+  // Define external dependencies
   const externals = [
     ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
     ...(pkg.peerDependencies ? Object.keys(pkg.peerDependencies) : []),
-    // All packages except the current one
+    // Exclude the current package and include packages matching the name pattern
     (id) => id !== pkg.name && config.packageConfig.namePattern?.test(id),
     ...config.build.baseExternals,
   ];
 
-  // 构建插件列表
+  // Configure plugins for rollup
   const plugins = [
     esbuild({
       minify: config.options.production,
@@ -38,7 +38,7 @@ export function createRollupConfig(pkgPath, config) {
     json(),
   ];
 
-  // TypeScript 相关插件
+  // Add TypeScript plugins if enabled
   if (config.build.typescript.enabled) {
     plugins.push(
       typescript({
@@ -59,6 +59,8 @@ export function createRollupConfig(pkgPath, config) {
       }),
     );
   }
+
+  // Add terser plugin for non-production environments
   if (!config.options.production) {
     plugins.push(
       terser({
@@ -72,7 +74,7 @@ export function createRollupConfig(pkgPath, config) {
     );
   }
 
-  // Create rollup config
+  // Create rollup configuration
   const rollupConfig = {
     input: entry,
     external: externals,
@@ -98,11 +100,13 @@ export async function buildPackage(pkgPath, config) {
   const bundle = await rollup(rollupConfig);
   const results = [];
 
+  // Write output files for each format
   for (const outputConfig of rollupConfig.output) {
     await bundle.write(outputConfig);
     results.push(outputConfig.format.toUpperCase());
   }
 
+  // Close the rollup bundle
   await bundle.close();
   return results;
 }

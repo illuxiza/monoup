@@ -2,52 +2,52 @@ import path from "path";
 
 const rootDir = process.cwd();
 
-// 基础配置
+// Base configuration
 const baseConfig = {
-  // 目录配置
+  // Directory settings
   rootDir,
   packagesDir: "packages",
   srcDir: "src",
   outDir: "lib",
+  verbose: false,
+  production: false,
+  process: false,
 
-  // 构建配置
+  // Build settings
   build: {
-    // 输出格式
+    // Output formats
     formats: ["cjs", "esm"],
     extensions: {
       cjs: ".js",
       esm: ".mjs",
     },
 
-    // 缓存目录
+    // Cache directories
     cacheDir: path.resolve(rootDir, "node_modules/.cache"),
     rollupCacheDir: path.resolve(
       rootDir,
       "node_modules/.cache/rollup-typescript"
     ),
 
-    // 构建目标
-    target: "ESNext", // 添加 target 配置
+    // Build target
+    target: "ESNext",
 
-    // 模块解析
+    // Module resolution
     moduleDirectories: ["node_modules"],
+
+    // TypeScript settings
+    typescript: {
+      enabled: true,
+      declaration: true,
+      removeComments: false,
+    }
   },
 
-  // 源码映射
+  // Source map
   sourcemap: true,
 };
 
-// TypeScript 相关配置选项
-const typescriptConfig = {
-  // 是否启用 TypeScript
-  enabled: true,
-  // 是否生成声明文件
-  declaration: true,
-  // 是否移除注释
-  removeComments: false,
-};
-
-// 定义配置方法
+// Define configuration method
 export function defineConfig(userConfig) {
   return {
     ...baseConfig,
@@ -56,34 +56,39 @@ export function defineConfig(userConfig) {
       ...baseConfig.build,
       ...userConfig.build,
       typescript: {
-        ...typescriptConfig,
-        ...userConfig.build.typescript,
+        ...baseConfig.build.typescript,
+        ...userConfig.build?.typescript,
       },
     },
+    options: {
+      ...baseConfig.options,
+      ...userConfig.options,
+    }
   };
 }
 
-// 获取配置
-export async function getConfig(args = []) {
+// Get configuration
+export async function getConfig(options = {}) {
   try {
-    // 动态导入根目录配置
+    // Dynamically import root directory configuration
     const configPath = path.resolve(rootDir, "monoup.config.mjs");
-    const configUrl = new URL(`file://${configPath}`).href;
-    const { default: userConfig } = await import(configUrl);
+    let userConfig = {};
 
-    // 命令行选项
-    const options = {
-      verbose: args.includes("--verbose"),
-      production: args.includes("--production"),
-      process: args.includes("--process"),
-      package: args.find((arg) => arg.startsWith("--package="))?.split("=")[1],
-    };
-
-    return {
+    try {
+      const configUrl = new URL(`file://${configPath}`).href;
+      const { default: config } = await import(configUrl);
+      userConfig = config;
+    } catch (e) {
+      // If no config file exists, use default config
+      console.log("No configuration file found, using default settings");
+    }
+    // Create initial config
+    const config = defineConfig({
       ...userConfig,
-      options,
-      rootDir,
-    };
+      ...options
+    });
+
+    return config;
   } catch (error) {
     console.error("Failed to load config:", error);
     process.exit(1);

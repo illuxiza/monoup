@@ -8,7 +8,7 @@ let init = false;
 /**
  * Log a message with color and icon
  * @param {string} message - Message to log
- * @param {'info'|'error'|'success'|'warning'} type - Type of message
+ * @param {'info'|'error'|'success'|'warn'} type - Type of message
  * @param {{ noPrefix: boolean }} options - Display options
  */
 export function log(message, type = "info", options = { noPrefix: false }) {
@@ -16,7 +16,7 @@ export function log(message, type = "info", options = { noPrefix: false }) {
     info: "\x1b[36m", // cyan
     error: "\x1b[31m", // red
     success: "\x1b[32m", // green
-    warning: "\x1b[33m", // yellow
+    warn: "\x1b[33m", // yellow
     reset: "\x1b[0m",
   };
 
@@ -24,7 +24,7 @@ export function log(message, type = "info", options = { noPrefix: false }) {
     info: "•",
     error: "✗",
     success: "✓",
-    warning: "⚠",
+    warn: "⚠",
   };
 
   const coloredPrefix = options.noPrefix
@@ -101,7 +101,7 @@ export function updatePackageDisplayStatus(
 }
 
 export function initDisplay(packages) {
-  // 初始化包状态
+  // Initialize package status
   packages.forEach((pkg) => {
     packageStatus.set(pkg.name, {
       status: "waiting",

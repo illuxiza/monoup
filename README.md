@@ -1,87 +1,147 @@
 # Monoup
 
-A lightweight and flexible library packing tool designed specifically for monorepos.
+A lightweight and flexible library packing tool designed specifically for monorepos. Build, version, and manage your monorepo packages with ease.
 
-## Features
+## ✨ Features
 
-- 📦 Monorepo-aware package building
-- 🔄 Version management with full semver support
-- 🧹 Clean build directories
-- 🎨 Beautiful CLI output with colored logging
-- ⚡ Fast and efficient builds
+- 📦 **Monorepo Support**: Seamlessly manage multiple packages in a monorepo
+- 🔄 **Smart Version Management**: Full semver support with pre-release capabilities
+- 🛠️ **Flexible Build System**: Support for multiple formats (CJS, ESM) and configurations
+- 🎯 **Package Targeting**: Build or update specific packages with `--package` option
+- 🧹 **Clean Management**: Efficiently clean build directories
+- 🎨 **Beautiful CLI**: Intuitive interface with colored output and progress display
+- ⚡ **Performance**: Fast and efficient builds optimized for monorepos
 
-## Installation
+## 🚀 Installation
 
 ```bash
 npm install -D monoup
 # or
 yarn add -D monoup
+# or
+pnpm add -D monoup
 ```
 
-## Usage
+## 📖 Usage
 
-### Basic Commands
+### Build Command
+
+Build your packages with various options:
 
 ```bash
-# Build packages
-monoup
-# or
+# Build all packages
 monoup build
 
-# Clean build directories
-monoup clean
+# Build with progress display
+monoup build --process
 
-# Version management
-monoup version patch          # 1.0.0 -> 1.0.1
-monoup version minor          # 1.0.0 -> 1.1.0
-monoup version major          # 1.0.0 -> 2.0.0
-monoup version pre           # 1.0.0 -> 1.0.0-alpha.0
-monoup version pre --tag beta # 1.0.0 -> 1.0.0-beta.0
+# Build specific package
+monoup build --package my-package
+
+# Build for production
+monoup build --production
+
+# Build with custom formats
+monoup build --formats=[cjs,esm]
 ```
 
-### Configuration
+### Version Command
+
+Manage package versions with full semver support:
+
+```bash
+# Bump patch version (1.0.0 -> 1.0.1)
+monoup version
+
+# Bump minor version (1.0.0 -> 1.1.0)
+monoup version minor
+
+# Bump major version (1.0.0 -> 2.0.0)
+monoup version major
+
+# Add/bump pre-release version
+monoup version pre              # 1.0.0 -> 1.0.0-alpha.0
+monoup version pre --tag beta   # 1.0.0 -> 1.0.0-beta.0
+
+# Set specific version
+monoup version 1.2.3
+
+# Update specific package
+monoup version --package my-package
+```
+
+### Clean Command
+
+Clean build directories:
+
+```bash
+# Clean all packages
+monoup clean
+
+# Clean specific package
+monoup clean --package my-package
+
+# Clean with verbose output
+monoup clean --verbose
+```
+
+## ⚙️ Configuration
 
 Create a `monoup.config.mjs` in your project root:
 
 ```javascript
 export default {
-  // Directory configuration
+  // Project structure
   packagesDir: "packages",  // Monorepo packages directory
   srcDir: "src",           // Source directory
   outDir: "lib",           // Output directory
-
+  
   // Build configuration
   build: {
-    formats: ["cjs", "esm"],  // Output formats
+    // Output formats and extensions
+    formats: ["cjs", "esm"],
     extensions: {
       cjs: ".js",
       esm: ".mjs",
     },
-    target: "ESNext",         // Build target
+    
+    // Build options
+    target: "ESNext",     // Build target
+    sourcemap: true,      // Generate source maps
+    
+    // TypeScript configuration
+    typescript: {
+      enabled: true,      // Enable TypeScript support
+      declaration: true,  // Generate declaration files
+    },
   },
 
-  // Source map configuration
-  sourcemap: true,
+  // Display options
+  verbose: false,         // Verbose logging
+  process: false,         // Show build progress
 };
 ```
 
-### Command Line Options
+## 🎯 Command Line Options
 
-Global options:
+### Global Options
 
-- `--verbose`: Enable verbose logging
 - `--help, -h`: Show help information
+- `--verbose`: Enable verbose logging
+- `--package=<name>`: Target specific package
 
-Build options:
+### Build Options
 
 - `--production`: Build for production
-- `--process`: Process mode
-- `--package`: Build specific package
+- `--process`: Show build progress
+- `--formats=[formats]`: Specify output formats
+- `--target=<target>`: Set build target
+- `--sourcemap=<bool>`: Enable/disable source maps
 
-Version options:
+### Version Options
 
-- `--tag`: Pre-release tag name (with 'pre' command)
+- `--tag=<name>`: Pre-release tag name (with 'pre' command)
 
-## License
+## 📄 License
 
 MIT © illuxiza

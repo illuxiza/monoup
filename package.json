@@ -1,6 +1,6 @@
 {
   "name": "monoup",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "type": "module",
   "description": "A library packing tool for monorepos",
   "main": "src/index.mjs",

@@ -7,14 +7,18 @@ import { sortPackagesByDependencies } from "./package.mjs";
 
 let verbose = false;
 
-export async function build() {
+/**
+ * Build packages based on configuration
+ * @param {Object} options - Build options from CLI
+ */
+export async function build(options = {}) {
   let success = true;
 
   log("Starting build...", "info");
 
-  // 获取配置
-  const config = await getConfig(process.argv);
-  verbose = config.options.verbose;
+  // Retrieve configuration with CLI options
+  const config = await getConfig(options);
+  verbose = config.verbose;
   const rootDir = config.rootDir;
 
   // Get packages to build
