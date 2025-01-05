@@ -1,33 +1,32 @@
-import path from 'path';
-import { rollup } from 'rollup';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import typescript from '@rollup/plugin-typescript';
 import json from '@rollup/plugin-json';
-import esbuild from 'rollup-plugin-esbuild';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import { getPackageInfo } from './package.mjs';
+import typescript from '@rollup/plugin-typescript';
+import path from 'path';
+import { ExternalOption, OutputOptions, rollup, RollupOptions } from 'rollup';
+import esbuild from 'rollup-plugin-esbuild';
+import { Config } from '../utils/config.js';
+import { getPackageInfo } from '../utils/package.js';
 
 // Create rollup configuration for a package
-export function createRollupConfig(pkgPath, config) {
+export function createRollupConfig(pkgPath: string, config: Config): RollupOptions {
   const pkg = getPackageInfo(pkgPath);
   const srcDir = path.resolve(pkgPath, config.srcDir);
   const outDir = path.resolve(pkgPath, config.outDir);
   const entry = path.resolve(srcDir, config.build.packageEntry);
 
   // Define external dependencies
-  const externals = [
+  const externals: ExternalOption = [
     ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
     ...(pkg.peerDependencies ? Object.keys(pkg.peerDependencies) : []),
-    // Exclude the current package and include packages matching the name pattern
-    (id) => id !== pkg.name && config.packageConfig.namePattern?.test(id),
-    ...config.build.baseExternals,
+    ...(config.build.baseExternals ?? []),
   ];
 
   // Configure plugins for rollup
   const plugins = [
     esbuild({
-      minify: config.options.production,
+      minify: config.production,
       target: config.build.target,
     }),
     commonjs(),
@@ -61,7 +60,7 @@ export function createRollupConfig(pkgPath, config) {
   }
 
   // Add terser plugin for non-production environments
-  if (!config.options.production) {
+  if (!config.production) {
     plugins.push(
       terser({
         compress: false,
@@ -75,7 +74,7 @@ export function createRollupConfig(pkgPath, config) {
   }
 
   // Create rollup configuration
-  const rollupConfig = {
+  const rollupConfig: RollupOptions = {
     input: entry,
     external: externals,
     plugins,
@@ -95,15 +94,15 @@ export function createRollupConfig(pkgPath, config) {
 }
 
 // Build a package using rollup
-export async function buildPackage(pkgPath, config) {
+export async function buildPackage(pkgPath: string, config: Config): Promise<string[]> {
   const rollupConfig = createRollupConfig(pkgPath, config);
   const bundle = await rollup(rollupConfig);
-  const results = [];
+  const results: string[] = [];
 
   // Write output files for each format
-  for (const outputConfig of rollupConfig.output) {
+  for (const outputConfig of rollupConfig.output as OutputOptions[]) {
     await bundle.write(outputConfig);
-    results.push(outputConfig.format.toUpperCase());
+    results.push(outputConfig.format!.toUpperCase());
   }
 
   // Close the rollup bundle

@@ -1,10 +1,22 @@
-import path from "path";
-import fs from "fs";
-import { getConfig } from "./config.mjs";
-import { log } from "./display.mjs";
-import { getPackageInfo } from "./package.mjs";
+import fs from 'fs';
+import path from 'path';
+import { Config, getConfig } from '../utils/config.js';
+import { log } from '../utils/display.js';
+import { getPackageInfo } from '../utils/package.js';
 
-function parseVersion(version) {
+interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string;
+  build: string;
+}
+
+interface VersionOptions {
+  tag?: string;
+}
+
+function parseVersion(version: string): Version | null {
   // Matches: major.minor.patch[-prerelease][+build]
   const regex =
     /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
@@ -15,19 +27,19 @@ function parseVersion(version) {
     major: parseInt(match[1], 10),
     minor: parseInt(match[2], 10),
     patch: parseInt(match[3], 10),
-    prerelease: match[4] || "",
-    build: match[5] || "",
+    prerelease: match[4] || '',
+    build: match[5] || '',
   };
 }
 
-function isValidSemVer(version) {
+function isValidSemVer(version: string): boolean {
   return parseVersion(version) !== null;
 }
 
-function incrementPrerelease(prerelease, tag = "alpha") {
+function incrementPrerelease(prerelease: string, tag: string = 'alpha'): string {
   if (!prerelease) return `${tag}.0`;
 
-  const parts = prerelease.split(".");
+  const parts = prerelease.split('.');
   const lastPart = parts[parts.length - 1];
 
   // If it's a different tag, start fresh
@@ -40,13 +52,13 @@ function incrementPrerelease(prerelease, tag = "alpha") {
     parts[parts.length - 1] = (parseInt(lastPart, 10) + 1).toString();
   } else {
     // If it's not a number, append .0
-    parts.push("0");
+    parts.push('0');
   }
 
-  return parts.join(".");
+  return parts.join('.');
 }
 
-function compareVersions(version1, version2) {
+function compareVersions(version1: string, version2: string): number | null {
   const v1 = parseVersion(version1);
   const v2 = parseVersion(version2);
 
@@ -88,73 +100,72 @@ function compareVersions(version1, version2) {
   return pre1.length - pre2.length;
 }
 
-function updateVersion(packagePath, versionArg = "patch", options = {}) {
-  const pkgJsonPath = path.resolve(packagePath, "package.json");
+function updateVersion(packagePath: string, versionArg: string = 'patch', options: VersionOptions = {}): void {
+  const pkgJsonPath = path.resolve(packagePath, 'package.json');
   if (!fs.existsSync(pkgJsonPath)) return;
 
-  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
-  let newVersion;
+  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+  let newVersion: string;
 
-  if (["major", "minor", "patch", "pre"].includes(versionArg)) {
+  if (['major', 'minor', 'patch', 'pre'].includes(versionArg)) {
     // Standard version increment
     const currentVersion = parseVersion(pkg.version);
     if (!currentVersion) {
-      log(`[${pkg.name}] Current version ${pkg.version} is not a valid semver`, "error");
+      log(`[${pkg.name}] Current version ${pkg.version} is not a valid semver`, 'error');
       process.exit(1);
     }
 
     const { major, minor, patch, prerelease, build } = currentVersion;
     switch (versionArg) {
-      case "major":
+      case 'major':
         newVersion = `${major + 1}.0.0`;
         break;
-      case "minor":
+      case 'minor':
         newVersion = `${major}.${minor + 1}.0`;
         break;
-      case "patch":
+      case 'patch':
         newVersion = `${major}.${minor}.${patch + 1}`;
         break;
-      case "pre":
-        const tag = options.tag || "alpha";
+      case 'pre':
+        const tag = options.tag || 'alpha';
         if (prerelease) {
-          newVersion = `${major}.${minor}.${patch}-${incrementPrerelease(
-            prerelease,
-            tag
-          )}`;
+          newVersion = `${major}.${minor}.${patch}-${incrementPrerelease(prerelease, tag)}`;
         } else {
           newVersion = `${major}.${minor}.${patch}-${tag}.0`;
         }
         break;
+      default:
+        newVersion = pkg.version;
     }
     // Preserve build metadata if it exists
     if (build) newVersion += `+${build}`;
   } else if (isValidSemVer(versionArg)) {
     // Direct version set
     newVersion = versionArg;
-    
+
     // Compare versions
     const comparison = compareVersions(newVersion, pkg.version);
     if (comparison === 0) {
-      log(`[${pkg.name}] Version ${newVersion} is already set, no changes needed`, "info");
+      log(`[${pkg.name}] Version ${newVersion} is already set, no changes needed`, 'info');
       return;
     }
-    if (comparison < 0) {
-      log(`[${pkg.name}] Warning: New version ${newVersion} is lower than current version ${pkg.version}`, "warn");
+    if (comparison !== null && comparison < 0) {
+      log(`[${pkg.name}] Warning: New version ${newVersion} is lower than current version ${pkg.version}`, 'warn');
     }
   } else {
     log(
       `[${pkg.name}] Invalid version format: ${versionArg}. Must be 'major', 'minor', 'patch', 'pre' or a valid semver (e.g., '1.2.3', '1.2.3-alpha.1', '1.2.3-beta.1+exp.sha.123')`,
-      "error"
+      'error',
     );
     process.exit(1);
   }
 
   pkg.version = newVersion;
-  fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + "\n");
-  log(`[${pkg.name}] Updated to version ${newVersion}`, "success");
+  fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + '\n');
+  log(`[${pkg.name}] Updated to version ${newVersion}`, 'success');
 }
 
-export async function version(versionArg = "patch", options = {}) {
+export async function version(versionArg: string = 'patch', options: Partial<Config> = {}): Promise<void> {
   const config = await getConfig(options);
   const rootDir = config.rootDir;
 
@@ -174,13 +185,13 @@ export async function version(versionArg = "patch", options = {}) {
   const targetPackages = config.package
     ? packages.filter((pkg) => {
         const pkgInfo = getPackageInfo(pkg);
-        const pkgName = pkgInfo.name.replace(namePattern, "");
+        const pkgName = pkgInfo.name.replace(namePattern, '');
         return pkgName === config.package;
       })
     : packages;
 
   if (config.package && targetPackages.length === 0) {
-    log(`Package '${config.package}' not found`, "error");
+    log(`Package '${config.package}' not found`, 'error');
     process.exit(1);
   }
 
