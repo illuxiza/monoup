@@ -38,6 +38,7 @@ export interface Config {
   monorepo: boolean;
   sourcemap: boolean;
   build: BuildConfig;
+  treeshake: boolean;
 }
 
 const rootDir = process.cwd();
@@ -54,6 +55,7 @@ const baseConfig: Config = {
   production: false,
   process: false,
   monorepo: false,
+  treeshake: false,
 
   // Build settings
   build: {

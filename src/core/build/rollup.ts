@@ -10,11 +10,64 @@ import { Config } from '../utils/config.js';
 import { getPackageInfo } from '../utils/package.js';
 
 // Create rollup configuration for a package
-export function createRollupConfig(pkgPath: string, config: Config): RollupOptions {
+interface EntryPoint {
+  input: string;
+}
+
+function getEntryPoints(pkgPath: string, srcDir: string, config: Config): EntryPoint[] {
+  const pkg = getPackageInfo(pkgPath);
+  const entryPoints: EntryPoint[] = [];
+
+  // Handle package.json exports field
+  if (pkg.exports) {
+    Object.entries(pkg.exports).forEach(([key, value]: [string, any]) => {
+      const outputBase = key === '.' ? 'index' : key.replace(/^\.\//, '');
+
+      // Handle different export formats
+      if (typeof value === 'object' && value !== null) {
+        // Infer source file path from output path
+        const srcFile = outputBase + '.ts';
+        const formats: Record<string, string> = {};
+
+        // Map output formats
+        if (value.require) {
+          formats.cjs = value.require.replace(/^\.\//, '');
+        }
+        if (value.import) {
+          formats.es = value.import.replace(/^\.\//, '');
+        }
+
+        if (Object.keys(formats).length > 0) {
+          entryPoints.push({
+            input: path.resolve(srcDir, srcFile),
+          });
+        }
+      } else if (typeof value === 'string') {
+        // Handle simple string exports
+        const inputFile = value.replace(/^\.\//, '');
+        entryPoints.push({
+          input: path.resolve(srcDir, inputFile),
+        });
+      }
+    });
+  }
+
+  // If no exports field or empty, fallback to default entry
+  if (entryPoints.length === 0) {
+    entryPoints.push({
+      input: path.resolve(srcDir, 'index.ts'),
+    });
+  }
+
+  return entryPoints;
+}
+
+// Create rollup configuration for a package
+export function createRollupConfig(pkgPath: string, config: Config): RollupOptions[] {
   const pkg = getPackageInfo(pkgPath);
   const srcDir = path.resolve(pkgPath, config.srcDir);
   const outDir = path.resolve(pkgPath, config.outDir);
-  const entry = path.resolve(srcDir, config.build.packageEntry);
+  const entryPoints = getEntryPoints(pkgPath, srcDir, config);
 
   // Define external dependencies
   const externals: ExternalOption = [
@@ -73,39 +126,45 @@ export function createRollupConfig(pkgPath: string, config: Config): RollupOptio
     );
   }
 
-  // Create rollup configuration
-  const rollupConfig: RollupOptions = {
-    input: entry,
+  // Create rollup configurations for each entry point
+  return entryPoints.map((entry) => ({
+    input: entry.input,
     external: externals,
+    treeshake: config.treeshake,
     plugins,
-    output: config.build.formats.map((format) => ({
-      dir: outDir,
-      entryFileNames: `[name]${config.build.extensions[format]}`,
-      format,
-      freeze: false,
-      sourcemap: config.sourcemap,
-      preserveModules: true,
-      preserveModulesRoot: srcDir,
-      exports: 'named',
-    })),
-  };
-
-  return rollupConfig;
+    output: config.build.formats
+      .map((format) => {
+        return {
+          dir: outDir,
+          entryFileNames: `[name]${config.build.extensions[format]}`,
+          format,
+          freeze: false,
+          sourcemap: config.sourcemap,
+          preserveModules: true,
+          preserveModulesRoot: srcDir,
+          exports: 'named' as const,
+        };
+      })
+      .filter((output) => output !== null),
+  }));
 }
 
 // Build a package using rollup
 export async function buildPackage(pkgPath: string, config: Config): Promise<string[]> {
-  const rollupConfig = createRollupConfig(pkgPath, config);
-  const bundle = await rollup(rollupConfig);
+  const rollupConfigs = createRollupConfig(pkgPath, config);
   const results: string[] = [];
 
-  // Write output files for each format
-  for (const outputConfig of rollupConfig.output as OutputOptions[]) {
-    await bundle.write(outputConfig);
-    results.push(outputConfig.format!.toUpperCase());
+  for (const rollupConfig of rollupConfigs) {
+    const bundle = await rollup(rollupConfig);
+    const outputs = rollupConfig.output as OutputOptions[];
+
+    for (const output of outputs) {
+      const { output: files } = await bundle.write(output);
+      results.push(...files.map((f) => f.fileName));
+    }
+
+    await bundle.close();
   }
 
-  // Close the rollup bundle
-  await bundle.close();
   return results;
 }

@@ -1,6 +1,6 @@
 {
   "name": "monoup",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "A library packing tool for monorepos",
   "main": "./dist/core/index.js",
@@ -22,25 +22,25 @@
     "dev": "tsc --watch",
     "clean": "rimraf dist",
     "format": "prettier --write src/**/*.ts",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepub": "yarn format && yarn run clean && yarn run build"
   },
   "dependencies": {
-    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-commonjs": "^28.0.2",
     "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-terser": "^0.4.4",
-    "@rollup/plugin-typescript": "^12.1.1",
-    "esbuild": "^0.24.0",
-    "glob": "^11.0.0",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "esbuild": "^0.24.2",
+    "glob": "^11.0.1",
     "prettier": "^3.4.2",
-    "rollup": "^4.27.4",
+    "rollup": "^4.32.1",
     "rollup-plugin-esbuild": "^6.1.1",
     "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "@types/node": "^20.10.6",
-    "rimraf": "^5.0.5",
-    "typescript": "^5.3.3"
+    "@types/node": "^22.12.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3"
   },
   "author": "illuxiza",
   "license": "MIT",
@@ -55,5 +55,5 @@
     "url": "https://github.com/illuxiza/monoup/issues"
   },
   "homepage": "https://github.com/illuxiza/monoup#readme",
-  "packageManager": "yarn@4.5.0"
+  "packageManager": "yarn@4.6.0"
 }
