@@ -1,7 +1,6 @@
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
-import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 import path from 'path';
 import { ExternalOption, OutputOptions, rollup, RollupOptions } from 'rollup';
@@ -108,20 +107,6 @@ export function createRollupConfig(pkgPath: string, config: Config): RollupOptio
         include: [`${srcDir}/**/*`],
         exclude: ['node_modules', '**/*.test.ts'],
         outputToFilesystem: true,
-      }),
-    );
-  }
-
-  // Add terser plugin for non-production environments
-  if (!config.production) {
-    plugins.push(
-      terser({
-        compress: false,
-        mangle: false,
-        format: {
-          comments: false,
-          beautify: true,
-        },
       }),
     );
   }
