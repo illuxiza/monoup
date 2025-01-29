@@ -36,4 +36,4 @@ jobs:
         run: |
           yarn config set npmAuthToken "${NPM_AUTH_TOKEN}"
           yarn config set npmPublishRegistry "https://registry.npmjs.org"
-          yarn publish
+          yarn npm publish
