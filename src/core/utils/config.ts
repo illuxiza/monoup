@@ -1,9 +1,16 @@
 import { transform } from 'esbuild';
 import fs from 'fs';
-import { createRequire } from 'module';
+import fsPromises from 'fs/promises';
 import path from 'path';
-import { createContext, runInContext } from 'vm';
+import { pathToFileURL } from 'url';
+import { tmpdir } from 'os';
 import { getPackageInfo } from './package.js';
+import { log } from './display.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '../../..');
 
 export interface TypeScriptConfig {
   enabled: boolean;
@@ -133,81 +140,67 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
 
   for (const configFile of configFiles) {
     const configPath = path.resolve(rootDir, configFile);
-    if (!fs.existsSync(configPath)) continue;
-
     try {
+      const stat = await fsPromises.stat(configPath);
+      if (!stat.isFile()) continue;
+
       // Handle JSON config files
       if (configFile.endsWith('.json')) {
-        return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const content = await fsPromises.readFile(configPath, 'utf-8');
+        return JSON.parse(content);
       }
 
       // Handle TypeScript config files
       if (configFile.endsWith('.ts')) {
-        const rawCode = fs.readFileSync(configPath, 'utf-8');
+        const rawCode = await fsPromises.readFile(configPath, 'utf-8');
 
-        // Transform TypeScript using esbuild
-        const { code } = await transform(rawCode, {
+        // Replace monoup imports with direct file imports
+        const modifiedCode = rawCode.replace(
+          /import\s*?{\s*?defineConfig\s*?}\s*?from\s*?['"]monoup['"];?/,
+          `import { defineConfig } from 'file://${projectRoot}/dist/core/index.js';`,
+        );
+
+        // Transform TypeScript code using esbuild
+        const { code } = await transform(modifiedCode, {
           loader: 'ts',
-          format: 'cjs',
+          format: 'esm',
           target: 'es2022',
           platform: 'node',
-          sourcefile: configPath,
-          sourcemap: 'inline',
-          tsconfigRaw: {
-            compilerOptions: {
-              module: 'CommonJS',
-              target: 'es2022',
-              moduleResolution: 'node',
-              esModuleInterop: true,
-            },
-          },
         });
 
-        // Create context for VM execution with dynamic import support
-        const require = createRequire(import.meta.url);
-        const context = createContext({
-          module: { exports: {} },
-          exports: {},
-          require,
-          import: (id: string) => import(id),
-          __dirname: path.dirname(configPath),
-          __filename: configPath,
-          process,
-          console,
-          Buffer,
-        });
+        // Create temporary file with random suffix
+        const tempFileName = `monoup.config-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`;
+        const tempFilePath = path.join(tmpdir(), tempFileName);
 
-        // Execute the code in VM context
-        runInContext(code, context);
-        const config = context.module.exports.default || context.module.exports;
-        return config || {};
+        try {
+          // Write transformed code to temp file
+          await fsPromises.writeFile(tempFilePath, code, 'utf-8');
+
+          // Dynamic import the config module
+          const { default: config } = await import(tempFilePath);
+          return config || {};
+        } finally {
+          // Clean up temp file
+          await fsPromises.unlink(tempFilePath).catch(() => {});
+        }
       }
 
       // Handle JavaScript config files
-      if (configFile.endsWith('.mjs')) {
-        const { default: config } = await import(`file://${configPath}`);
-        return config || {};
-      } else {
-        // For .js and .cjs files, try both require and import
-        try {
-          const require = createRequire(import.meta.url);
-          const config = require(configPath);
-          return config.default || config;
-        } catch (err) {
-          const { default: config } = await import(`file://${configPath}`);
-          return config || {};
-        }
-      }
+      const { default: config } = await import(`file://${configPath}`);
+      return config || {};
     } catch (error: any) {
-      console.warn(`Failed to load config [${path.basename(configPath)}]:`, error.message);
-      if (process.env.DEBUG) {
-        console.error('Detailed error:', error);
+      // Skip file not found errors
+      if (error.code !== 'ENOENT') {
+        log(error.message, 'error');
+        if (process.env.DEBUG) {
+          console.error('Detailed error:', error);
+        }
       }
       continue;
     }
   }
 
-  console.warn('No configuration file found, using default settings');
+  log('No configuration file found, using default settings', 'warn');
   return {};
 }
 
