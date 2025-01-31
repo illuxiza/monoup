@@ -5,6 +5,7 @@ export interface TypeScriptConfig {
   enabled: boolean;
   declaration: boolean;
   removeComments: boolean;
+  paths?: Record<string, string[]>;
 }
 
 export interface BuildConfig {

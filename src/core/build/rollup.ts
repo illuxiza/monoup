@@ -99,6 +99,7 @@ export function createRollupConfig(pkgPath: string, config: Config): RollupOptio
           removeComments: config.build.typescript.removeComments,
           declaration: config.build.typescript.declaration,
           declarationMap: config.sourcemap,
+          paths: config.build.typescript.paths ?? [],
         },
         sourceMap: config.sourcemap,
         declarationMap: config.sourcemap,
