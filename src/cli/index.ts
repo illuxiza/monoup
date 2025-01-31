@@ -2,7 +2,7 @@
 
 // Import necessary modules
 import { log } from '../core/utils/display.js';
-import { build, clean, version } from '../core/index.js';
+import { build, clean, version, publish } from '../core/index.js';
 
 interface CommandOptions {
   [key: string]: any;
@@ -129,6 +129,18 @@ const commands: Commands = {
       ['monoup version pre --tag beta', "Use 'beta' as pre-release tag"],
       ['monoup version --package=my-pkg', 'Update specific package version'],
       ['monoup version 1.2.3', 'Set specific version'],
+    ],
+  },
+  publish: {
+    handler: async (args: string[]) => {
+      const { options } = parseArgs(args);
+      await publish(options);
+    },
+    description: 'Publish packages to npm registry',
+    options: [['--package=<n>', 'Publish specific package, otherwise publish all packages with same version as root']],
+    examples: [
+      ['monoup publish', 'Publish all packages with same version as root package'],
+      ['monoup publish --package=my-pkg', 'Publish specific package'],
     ],
   },
 };
