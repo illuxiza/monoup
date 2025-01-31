@@ -6,6 +6,34 @@ import { getPackageInfo } from '../utils/package.js';
 import { execSync } from 'child_process';
 
 /**
+ * Format npm output by filtering unnecessary information and adding log level prefixes
+ * @param output - Raw npm output
+ * @returns Formatted output
+ */
+function formatNpmOutput(output: string): string {
+  return output
+    .split('\n')
+    .filter((line) => {
+      // Filter out file information lines
+      if (line === 'npm notice') return false;
+      if (line.match(/notice \d+(.\d+)?[kMG]?B /)) return false;
+      if (line.includes('Tarball Contents')) return false;
+      if (!line.trim()) return false;
+      return true;
+    })
+    .map((line) => {
+      // Replace npm prefixes with our format
+      return line
+        .replace(/^npm notice/, ' [INFO]')
+        .replace(/^npm error/, ' [ERROR]')
+        .replace(/^npm warn/, ' [WARN]')
+        .replace(/^(\d{3})/, ' [ERROR] $1')
+        .replace(/^code E/, ' [ERROR] code E');
+    })
+    .join('\n');
+}
+
+/**
  * Publishes a single package to npm
  * @param packageDir - Directory of the package to publish
  * @param options - Configuration options
@@ -19,16 +47,46 @@ async function publishPackage(packageDir: string, options: Partial<Config> = {})
 
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
 
-  log(`[${pkg.name}] Publishing...`);
+  // Check if package version is already published
+  try {
+    const publishedVersion = execSync(`npm view ${pkg.name} version`, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+    }).trim();
+
+    if (publishedVersion === pkg.version) {
+      log(`[${pkg.name}] Version ${pkg.version} already published, skipping`, 'info');
+      return true;
+    }
+  } catch (error: any) {
+    // Package doesn't exist, proceed with publish
+  }
+
+  log(`[${pkg.name}] Publishing version ${pkg.version}...`);
 
   try {
-    execSync('npm publish', {
+    // Run npm publish and capture output
+    const result = execSync('npm publish', {
       cwd: packageDir,
-      stdio: 'inherit',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: 'utf-8',
     });
+
+    const filteredOutput = formatNpmOutput(result);
+    if (filteredOutput.trim()) {
+      console.log(filteredOutput);
+    }
+
     log(`[${pkg.name}] Published successfully`, 'success');
     return true;
   } catch (error: any) {
+    // Capture error output
+    const errorOutput = error.stderr?.toString() || error.stdout?.toString() || error.message;
+    const formattedError = formatNpmOutput(errorOutput);
+    if (formattedError.trim()) {
+      console.log(formattedError);
+    }
+
     log(`[${pkg.name}] Failed to publish`, 'error');
     return false;
   }
@@ -89,7 +147,7 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
 
     // If no specific package is specified, only publish packages with the same version as root
     if (!config.package && pkgInfo.version !== rootVersion) {
-      log(`[${pkgInfo.name}] Skipping (version ${pkgInfo.version} differs from root version ${rootVersion})`);
+      log(`[${pkgInfo.name}] Skipping (version ${pkgInfo.version} differs from root version ${rootVersion})`, 'info');
       continue;
     }
 
@@ -108,7 +166,7 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
     log('Publish completed with errors', 'error');
     process.exit(1);
   } else if (publishedCount === 0) {
-    log('No packages published');
+    log('No packages published', 'info');
   } else {
     log(`Successfully published ${publishedCount} package(s)`, 'success');
   }
