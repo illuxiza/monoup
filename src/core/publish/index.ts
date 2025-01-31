@@ -22,7 +22,7 @@ async function publishPackage(packageDir: string, options: Partial<Config> = {})
   log(`[${pkg.name}] Publishing...`);
 
   try {
-    execSync('npm publish --access public', {
+    execSync('npm publish', {
       cwd: packageDir,
       stdio: 'inherit',
     });
@@ -80,6 +80,7 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
   log('Starting publish...');
 
   let publishedCount = 0;
+  let failed = false;
 
   // Publish packages
   for (const packageDir of targetPackages) {
@@ -88,11 +89,7 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
 
     // If no specific package is specified, only publish packages with the same version as root
     if (!config.package && pkgInfo.version !== rootVersion) {
-      if (!config.process) {
-        log(`[${pkgInfo.name}] Skipping (version ${pkgInfo.version} differs from root version ${rootVersion})`);
-      } else {
-        updatePackageDisplayStatus(pkgInfo.name, 'pending', 'Skipped (version mismatch)');
-      }
+      log(`[${pkgInfo.name}] Skipping (version ${pkgInfo.version} differs from root version ${rootVersion})`);
       continue;
     }
 
@@ -100,12 +97,17 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
     if (success) {
       publishedCount++;
     } else {
-      log('Publish completed with errors', 'error');
-      process.exit(1);
+      failed = true;
+      if (config.package) {
+        process.exit(1);
+      }
     }
   }
 
-  if (publishedCount === 0) {
+  if (failed) {
+    log('Publish completed with errors', 'error');
+    process.exit(1);
+  } else if (publishedCount === 0) {
     log('No packages published');
   } else {
     log(`Successfully published ${publishedCount} package(s)`, 'success');
