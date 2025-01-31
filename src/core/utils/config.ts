@@ -1,4 +1,8 @@
+import { transform } from 'esbuild';
+import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
+import { createContext, runInContext } from 'vm';
 import { getPackageInfo } from './package.js';
 
 export interface TypeScriptConfig {
@@ -41,6 +45,11 @@ export interface Config {
   build: BuildConfig;
   treeshake: boolean;
 }
+
+// Deep partial type for nested objects
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
 
 const rootDir = process.cwd();
 
@@ -93,7 +102,7 @@ const baseConfig: Config = {
 };
 
 // Define configuration method
-export function defineConfig(userConfig: Partial<Config>): Config {
+export function defineConfig(userConfig: DeepPartial<Config>): Config {
   return {
     ...baseConfig,
     ...userConfig,
@@ -104,8 +113,90 @@ export function defineConfig(userConfig: Partial<Config>): Config {
         ...baseConfig.build.typescript,
         ...userConfig.build?.typescript,
       },
-    },
+    } as BuildConfig,
   };
+}
+
+/**
+ * Load config file with different formats
+ * @param rootDir - Root directory
+ * @returns User config object
+ */
+async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
+  const configFiles = [
+    'monoup.config.mjs',
+    'monoup.config.js',
+    'monoup.config.cjs',
+    'monoup.config.ts',
+    'monoup.config.json',
+  ];
+
+  for (const configFile of configFiles) {
+    const configPath = path.resolve(rootDir, configFile);
+    if (!fs.existsSync(configPath)) continue;
+
+    try {
+      // Handle JSON config files
+      if (configFile.endsWith('.json')) {
+        return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      }
+
+      // Handle TypeScript config files
+      if (configFile.endsWith('.ts')) {
+        const rawCode = fs.readFileSync(configPath, 'utf-8');
+
+        // Transform TypeScript using esbuild
+        const { code } = await transform(rawCode, {
+          loader: 'ts',
+          format: 'cjs', // Change to CommonJS for VM context
+          target: 'es2022',
+          platform: 'node',
+          sourcefile: configPath,
+          sourcemap: 'inline',
+          tsconfigRaw: {
+            compilerOptions: {
+              module: 'CommonJS',
+              target: 'es2022',
+              moduleResolution: 'node',
+              esModuleInterop: true,
+            },
+          },
+        });
+
+        // Create context for VM execution
+        const require = createRequire(import.meta.url);
+        const context = createContext({
+          module: { exports: {} },
+          exports: {},
+          require,
+          __dirname: path.dirname(configPath),
+          __filename: configPath,
+          process,
+          console,
+          Buffer,
+        });
+
+        // Execute the code in VM context
+        runInContext(code, context);
+        const config = context.module.exports.default || context.module.exports;
+        return config || {};
+      }
+
+      // Handle JavaScript config files
+      const configUrl = new URL(`file://${configPath}`).href;
+      const { default: config } = await import(configUrl);
+      return config || {};
+    } catch (error: any) {
+      console.warn(`Failed to load config [${path.basename(configPath)}]:`, error.message);
+      if (process.env.DEBUG) {
+        console.error('Detailed error:', error);
+      }
+      continue;
+    }
+  }
+
+  console.warn('No configuration file found, using default settings');
+  return {};
 }
 
 // Get configuration
@@ -117,18 +208,8 @@ export async function getConfig(options: Partial<Config> = {}): Promise<Config> 
     const rootPkg = getPackageInfo(rootDir);
     const pkgName = rootPkg.name;
 
-    // Dynamically import root directory configuration
-    const configPath = path.resolve(rootDir, 'monoup.config.mjs');
-    let userConfig = {};
-
-    try {
-      const configUrl = new URL(`file://${configPath}`).href;
-      const { default: config } = await import(configUrl);
-      userConfig = config;
-    } catch (e) {
-      // If no config file exists, use default config
-      console.log('No configuration file found, using default settings');
-    }
+    // Load user config from file
+    const userConfig = await loadConfigFile(rootDir);
 
     // Create initial config with package name
     const config = defineConfig({

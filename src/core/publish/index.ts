@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { Config, getConfig } from '../utils/config.js';
 import { log, initDisplay, updatePackageDisplayStatus } from '../utils/display.js';
-import { getPackageInfo } from '../utils/package.js';
+import { getPackageInfo, sortPackagesByDependencies } from '../utils/package.js';
 import { execSync } from 'child_process';
 
 /**
@@ -38,7 +38,7 @@ function formatNpmOutput(output: string): string {
  * @param packageDir - Directory of the package to publish
  * @param options - Configuration options
  */
-async function publishPackage(packageDir: string, options: Partial<Config> = {}): Promise<boolean> {
+async function publishPackage(packageDir: string): Promise<boolean> {
   const pkgJsonPath = path.resolve(packageDir, 'package.json');
   if (!fs.existsSync(pkgJsonPath)) {
     log(`No package.json found in ${packageDir}`, 'error');
@@ -105,24 +105,27 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
 
   // Get all package directories
   const namePattern = new RegExp(`^@${config.name}\\/`);
-  const packages = [
-    rootDir,
+  let packages = [
     ...(config.monorepo
-      ? fs
-          .readdirSync(path.resolve(rootDir, 'packages'))
-          .map((pkg) => path.resolve(rootDir, 'packages', pkg))
-          .filter((pkg) => {
-            const pkgInfo = getPackageInfo(pkg);
-            return pkgInfo && namePattern.test(pkgInfo.name);
-          })
-      : []),
+      ? [
+          ...(config.build.main ? [rootDir] : []),
+          ...fs
+            .readdirSync(path.resolve(rootDir, config.packagesDir))
+            .map((dir) => path.resolve(rootDir, config.packagesDir, dir))
+            .filter((dir) => fs.statSync(dir).isDirectory()),
+        ]
+      : [rootDir]),
   ];
+
+  // Sort packages by dependency order
+  packages = sortPackagesByDependencies(packages, config);
 
   // Filter packages if specific package is specified
   const targetPackages = config.package
     ? packages.filter((pkg) => {
         const pkgInfo = getPackageInfo(pkg);
-        return pkgInfo && pkgInfo.name === config.package;
+        const pkgName = pkgInfo.name.replace(namePattern, '');
+        return pkgInfo && pkgName === config.package;
       })
     : packages;
 
@@ -151,7 +154,7 @@ export async function publish(options: Partial<Config> = {}): Promise<void> {
       continue;
     }
 
-    const success = await publishPackage(packageDir, config);
+    const success = await publishPackage(packageDir);
     if (success) {
       publishedCount++;
     } else {
