@@ -148,7 +148,7 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
         // Transform TypeScript using esbuild
         const { code } = await transform(rawCode, {
           loader: 'ts',
-          format: 'cjs', // Change to CommonJS for VM context
+          format: 'cjs',
           target: 'es2022',
           platform: 'node',
           sourcefile: configPath,
@@ -163,12 +163,13 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
           },
         });
 
-        // Create context for VM execution
+        // Create context for VM execution with dynamic import support
         const require = createRequire(import.meta.url);
         const context = createContext({
           module: { exports: {} },
           exports: {},
           require,
+          import: (id: string) => import(id),
           __dirname: path.dirname(configPath),
           __filename: configPath,
           process,
@@ -183,9 +184,20 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
       }
 
       // Handle JavaScript config files
-      const configUrl = new URL(`file://${configPath}`).href;
-      const { default: config } = await import(configUrl);
-      return config || {};
+      if (configFile.endsWith('.mjs')) {
+        const { default: config } = await import(`file://${configPath}`);
+        return config || {};
+      } else {
+        // For .js and .cjs files, try both require and import
+        try {
+          const require = createRequire(import.meta.url);
+          const config = require(configPath);
+          return config.default || config;
+        } catch (err) {
+          const { default: config } = await import(`file://${configPath}`);
+          return config || {};
+        }
+      }
     } catch (error: any) {
       console.warn(`Failed to load config [${path.basename(configPath)}]:`, error.message);
       if (process.env.DEBUG) {
