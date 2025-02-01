@@ -4,13 +4,34 @@ A lightweight and flexible library packing tool designed specifically for monore
 
 ## ✨ Features
 
-- 📦 **Monorepo Support**: Seamlessly manage multiple packages in a monorepo
-- 🔄 **Smart Version Management**: Full semver support with pre-release capabilities
-- 🛠️ **Flexible Build System**: Support for multiple formats (CJS, ESM) and configurations
-- 🎯 **Package Targeting**: Build or update specific packages with `--package` option
-- 🧹 **Clean Management**: Efficiently clean build directories
-- 🎨 **Beautiful CLI**: Intuitive interface with colored output and progress display
-- ⚡ **Performance**: Fast and efficient builds optimized for monorepos
+Build Features:
+
+- 📦 **Multi-Format Output**: Support for CJS and ESM formats
+- 🔨 **TypeScript Support**: Full TypeScript support with declaration files
+- ⚡ **Performance**: Fast builds using esbuild and rollup
+- 🔍 **Source Maps**: Optional source map generation
+- 📊 **Progress Display**: Real-time build progress
+
+Version Management:
+
+- 🔄 **Semver Support**: Full semantic versioning compliance
+- 📦 **Monorepo Sync**: Maintains version consistency across packages
+- 🏷️ **Pre-release**: Support for alpha, beta, and other pre-release tags
+- ⚡ **Auto-update**: Automatically updates dependent package versions
+
+Publishing:
+
+- 🔄 **Version Sync**: Only publishes packages matching root version
+- 📦 **Smart Package Order**: Publishes in dependency order
+- 🔍 **Version Check**: Skips already published versions
+- 🎨 **Beautiful Output**: Clean, formatted npm publish output
+
+General Features:
+
+- 🎯 **Package Targeting**: Target specific packages with `--package` option
+- 🧹 **Clean Management**: Smart cleaning of build artifacts
+- 🎨 **Beautiful CLI**: Intuitive interface with colored output
+- ⚠️ **Error Handling**: Detailed error reporting with proper exit codes
 
 ## 🚀 Installation
 
@@ -26,53 +47,38 @@ pnpm add -D monoup
 
 ### Build Command
 
-Build your packages with various options:
-
 ```bash
 # Build all packages
 monoup build
 
-# Build with progress display
-monoup build --process
-
 # Build specific package
 monoup build --package my-package
 
+# Build with process display
+monoup build --process
+
 # Build for production
 monoup build --production
-
-# Build with custom formats
-monoup build --formats=[cjs,esm]
 ```
 
 ### Version Command
-
-Manage package versions with full semver support:
 
 ```bash
 # Bump patch version (1.0.0 -> 1.0.1)
 monoup version
 
-# Bump minor version (1.0.0 -> 1.1.0)
-monoup version minor
-
-# Bump major version (1.0.0 -> 2.0.0)
-monoup version major
+# Bump specific version type
+monoup version [major|minor|patch]
 
 # Add/bump pre-release version
 monoup version pre              # 1.0.0 -> 1.0.0-alpha.0
 monoup version pre --tag beta   # 1.0.0 -> 1.0.0-beta.0
 
-# Set specific version
-monoup version 1.2.3
-
-# Update specific package
+# Version specific package
 monoup version --package my-package
 ```
 
 ### Clean Command
-
-Clean build directories:
 
 ```bash
 # Clean all packages
@@ -85,6 +91,19 @@ monoup clean --package my-package
 monoup clean --verbose
 ```
 
+### Publish Command
+
+```bash
+# Publish all packages that match root version
+monoup publish
+
+# Publish specific package
+monoup publish --package my-package
+
+# Publish with process display
+monoup publish --process
+```
+
 ## ⚙️ Configuration
 
 Create a `monoup.config.mjs` in your project root:
@@ -92,55 +111,35 @@ Create a `monoup.config.mjs` in your project root:
 ```javascript
 export default {
   // Project structure
-  packagesDir: "packages",  // Monorepo packages directory
-  srcDir: "src",           // Source directory
-  outDir: "lib",           // Output directory
-  
+  packagesDir: 'packages', // Monorepo packages directory
+  srcDir: 'src', // Source directory
+  outDir: 'lib', // Output directory
+
   // Build configuration
   build: {
     // Output formats and extensions
-    formats: ["cjs", "esm"],
+    formats: ['cjs', 'esm'],
     extensions: {
-      cjs: ".js",
-      esm: ".mjs",
+      cjs: '.js',
+      esm: '.mjs',
     },
-    
+
     // Build options
-    target: "ESNext",     // Build target
-    sourcemap: true,      // Generate source maps
-    
+    target: 'ESNext', // Build target
+    sourcemap: true, // Generate source maps
+
     // TypeScript configuration
     typescript: {
-      enabled: true,      // Enable TypeScript support
-      declaration: true,  // Generate declaration files
+      enabled: true, // Enable TypeScript support
+      declaration: true, // Generate declaration files
     },
   },
 
   // Display options
-  verbose: false,         // Verbose logging
-  process: false,         // Show build progress
+  verbose: false, // Verbose logging
+  process: false, // Show build progress
 };
 ```
-
-## 🎯 Command Line Options
-
-### Global Options
-
-- `--help, -h`: Show help information
-- `--verbose`: Enable verbose logging
-- `--package=<name>`: Target specific package
-
-### Build Options
-
-- `--production`: Build for production
-- `--process`: Show build progress
-- `--formats=[formats]`: Specify output formats
-- `--target=<target>`: Set build target
-- `--sourcemap=<bool>`: Enable/disable source maps
-
-### Version Options
-
-- `--tag=<name>`: Pre-release tag name (with 'pre' command)
 
 ## 📄 License
 

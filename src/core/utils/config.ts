@@ -1,12 +1,10 @@
 import { transform } from 'esbuild';
-import fs from 'fs';
 import fsPromises from 'fs/promises';
-import path from 'path';
-import { pathToFileURL } from 'url';
 import { tmpdir } from 'os';
-import { getPackageInfo } from './package.js';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { log } from './display.js';
-import { fileURLToPath } from 'url';
+import { getPackageInfo } from './package.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,7 +155,7 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
         // Replace monoup imports with direct file imports
         const modifiedCode = rawCode.replace(
           /import\s*?{\s*?defineConfig\s*?}\s*?from\s*?['"]monoup['"];?/,
-          `import { defineConfig } from 'file://${projectRoot}/dist/core/index.js';`,
+          `import { defineConfig } from '${pathToFileURL(path.resolve(projectRoot, 'dist/core/index.js')).href}';`,
         );
 
         // Transform TypeScript code using esbuild
@@ -176,8 +174,8 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
           // Write transformed code to temp file
           await fsPromises.writeFile(tempFilePath, code, 'utf-8');
 
-          // Dynamic import the config module
-          const { default: config } = await import(tempFilePath);
+          // Dynamic import the config module using proper file URL
+          const { default: config } = await import(pathToFileURL(path.resolve(tempFilePath)).href);
           return config || {};
         } finally {
           // Clean up temp file
@@ -185,8 +183,8 @@ async function loadConfigFile(rootDir: string): Promise<Record<string, any>> {
         }
       }
 
-      // Handle JavaScript config files
-      const { default: config } = await import(`file://${configPath}`);
+      // Handle JavaScript config files with proper file URL
+      const { default: config } = await import(pathToFileURL(path.resolve(configPath)).href);
       return config || {};
     } catch (error: any) {
       // Skip file not found errors
