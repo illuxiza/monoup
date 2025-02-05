@@ -4,6 +4,8 @@ import { Config, getConfig } from '../utils/config.js';
 import { log, initDisplay, updatePackageDisplayStatus } from '../utils/display.js';
 import { getPackageInfo, sortPackagesByDependencies } from '../utils/package.js';
 import { execSync } from 'child_process';
+import { tmpdir } from 'os';
+import { copyFileSync, mkdirSync, rmSync } from 'fs';
 
 /**
  * Format npm output by filtering unnecessary information and adding log level prefixes
@@ -26,11 +28,76 @@ function formatNpmOutput(output: string): string {
       return line
         .replace(/^npm notice/, ' [INFO]')
         .replace(/^npm error/, ' [ERROR]')
+        .replace(/^npm ERR!/, ' [ERROR]')
         .replace(/^npm warn/, ' [WARN]')
-        .replace(/^(\d{3})/, ' [ERROR] $1')
-        .replace(/^code E/, ' [ERROR] code E');
+        .replace(/^npm WARN/, ' [WARN]');
     })
     .join('\n');
+}
+
+/**
+ * Prepare package for publishing by copying files to temp directory
+ * @param packageDir - Source package directory
+ * @returns Temporary directory path
+ */
+function preparePackageForPublish(packageDir: string): string {
+  const pkgJsonPath = path.resolve(packageDir, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+
+  // Create temp directory
+  const tmpDir = path.join(tmpdir(), `monoup-${Date.now()}`);
+  mkdirSync(tmpDir, { recursive: true });
+
+  // Copy package.json files
+  const files = pkg.files || [];
+  for (const file of files) {
+    const srcPath = path.resolve(packageDir, file);
+    const destPath = path.resolve(tmpDir, file);
+
+    // Create destination directory if needed
+    mkdirSync(path.dirname(destPath), { recursive: true });
+
+    try {
+      if (fs.statSync(srcPath).isDirectory()) {
+        // Copy directory recursively
+        copyRecursive(srcPath, destPath);
+      } else {
+        // Copy single file
+        copyFileSync(srcPath, destPath);
+      }
+    } catch (error) {
+      log(`Warning: Failed to copy ${file}`, 'warn');
+    }
+  }
+
+  // Modify package.json
+  const newPkg = { ...pkg };
+  delete newPkg.workspaces;
+  delete newPkg.scripts;
+  delete newPkg.devDependencies;
+
+  // Write modified package.json
+  fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(newPkg, null, 2), 'utf-8');
+
+  return tmpDir;
+}
+
+/**
+ * Recursively copy a directory
+ */
+function copyRecursive(src: string, dest: string) {
+  if (!fs.existsSync(src)) return;
+
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    mkdirSync(dest, { recursive: true });
+    const files = fs.readdirSync(src);
+    for (const file of files) {
+      copyRecursive(path.join(src, file), path.join(dest, file));
+    }
+  } else {
+    copyFileSync(src, dest);
+  }
 }
 
 /**
@@ -64,10 +131,13 @@ async function publishPackage(packageDir: string): Promise<boolean> {
 
   log(`[${pkg.name}] Publishing version ${pkg.version}...`);
 
+  // Prepare temp directory for publishing
+  const tmpDir = preparePackageForPublish(packageDir);
+
   try {
-    // Run npm publish and capture output
+    // Run npm publish from temp directory
     const result = execSync('npm publish', {
-      cwd: packageDir,
+      cwd: tmpDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf-8',
     });
@@ -89,6 +159,13 @@ async function publishPackage(packageDir: string): Promise<boolean> {
 
     log(`[${pkg.name}] Failed to publish`, 'error');
     return false;
+  } finally {
+    // Clean up temp directory
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch (error) {
+      log(`Warning: Failed to clean up temp directory ${tmpDir}`, 'warn');
+    }
   }
 }
 
